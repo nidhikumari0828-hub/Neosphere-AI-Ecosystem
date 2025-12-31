@@ -1,0 +1,9 @@
+{
+  "name": "Neosphere AI Ecosystem",
+  "description": "A revolutionary autonomous AI ecosystem comprising specialized intelligent agents working in collaborative harmony.",
+  "requestFramePermissions": [
+    "microphone",
+    "geolocation",
+    "camera"
+  ]
+}
