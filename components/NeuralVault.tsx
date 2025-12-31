@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Message } from '../types';
 import { 
@@ -6,7 +5,7 @@ import {
   Download, Trash2, ExternalLink, Share2, Package,
   Music, Archive, Loader2, CheckCircle, Smartphone
 } from 'lucide-react';
-import { downloadBlob, exportToPDF, shareToSocial, exportAlbumAsZip } from '../services/exportService';
+import { shareToSocial, exportAlbumAsZip, exportToUnifiedArchive } from '../services/exportService';
 
 interface NeuralVaultProps {
   savedMessages: Message[];
@@ -21,6 +20,10 @@ const NeuralVault: React.FC<NeuralVaultProps> = ({ savedMessages, onRemove }) =>
     setIsPackaging(true);
     await exportAlbumAsZip(savedMessages);
     setIsPackaging(false);
+  };
+  
+  const handleSingleExport = async (msg: Message) => {
+    await exportToUnifiedArchive(msg);
   };
 
   return (
@@ -103,7 +106,7 @@ const NeuralVault: React.FC<NeuralVaultProps> = ({ savedMessages, onRemove }) =>
 
               <div className="flex items-center justify-between mt-auto pt-5 border-t border-slate-800/40">
                 <div className="flex space-x-1">
-                  <button onClick={() => exportToPDF(msg)} className="p-2.5 bg-slate-800/50 rounded-xl text-slate-400 hover:text-cyan-400 hover:bg-slate-800 transition-all" title="Export PDF"><FileText className="w-4 h-4" /></button>
+                  <button onClick={() => handleSingleExport(msg)} className="p-2.5 bg-slate-800/50 rounded-xl text-slate-400 hover:text-cyan-400 hover:bg-slate-800 transition-all" title="Export Unified Archive"><Package className="w-4 h-4" /></button>
                   <button onClick={() => shareToSocial(msg)} className="p-2.5 bg-slate-800/50 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all" title="Uplink to Pulse"><Share2 className="w-4 h-4" /></button>
                 </div>
                 <div className="text-right">

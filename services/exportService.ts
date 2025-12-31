@@ -1,5 +1,4 @@
-
-import { Message, GroundingSource } from "../types";
+import { Message } from "../types";
 import JSZip from "jszip";
 
 export const downloadBlob = (blob: Blob, fileName: string) => {
@@ -13,128 +12,80 @@ export const downloadBlob = (blob: Blob, fileName: string) => {
   document.body.removeChild(a);
 };
 
-export const exportToPDF = async (message: Message) => {
-  // We generate a high-fidelity HTML document that acts as an "Intelligence Dossier"
-  // This is superior to a plain TXT file and can be "Printed to PDF" by the user.
-  const htmlContent = `
-<!DOCTYPE html>
-<html>
-<head>
-  <style>
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #020617; color: #e2e8f0; padding: 40px; }
-    .dossier { border: 1px solid #1e293b; padding: 40px; border-radius: 20px; max-width: 800px; margin: auto; background: #0f172a; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
-    .header { border-bottom: 2px solid #06b6d4; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-end; }
-    .title { font-size: 24px; font-weight: 900; letter-spacing: -1px; text-transform: uppercase; color: #fff; }
-    .meta { font-family: monospace; font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 2px; }
-    .content { font-size: 16px; line-height: 1.6; color: #cbd5e1; white-space: pre-wrap; margin-bottom: 40px; }
-    .media { margin-top: 20px; border-radius: 12px; overflow: hidden; border: 1px solid #334155; }
-    .media img { width: 100%; height: auto; }
-    .grounding { margin-top: 30px; padding: 20px; background: #1e293b; border-radius: 12px; }
-    .grounding-title { font-size: 12px; font-weight: bold; color: #06b6d4; margin-bottom: 10px; text-transform: uppercase; }
-    .footer { margin-top: 50px; text-align: center; border-top: 1px solid #1e293b; padding-top: 20px; font-size: 10px; color: #475569; letter-spacing: 4px; }
-  </style>
-</head>
-<body>
-  <div class="dossier">
-    <div class="header">
-      <div>
-        <div class="title">Neosphere AI Intelligence Dossier</div>
-        <div class="meta">Classification: TOP SECRET // NEURAL OUTPUT</div>
-      </div>
-      <div class="meta" style="text-align: right;">
-        REF_ID: ${message.id}<br>
-        SYNC_TIME: ${new Date(message.timestamp).toISOString()}
-      </div>
-    </div>
-    
-    <div class="content">${message.content}</div>
+/**
+ * A helper function to add a complete, structured message archive to a JSZip instance.
+ * This is the core logic for creating a portable intelligence package.
+ */
+const addMessageToZip = async (zip: JSZip, message: Message) => {
+  // Create a root folder for the message to keep the archive clean
+  const messageFolder = zip.folder(`NEOSPHERE_NODE_${message.id}`);
+  if (!messageFolder) return;
 
-    ${message.mediaUrl ? `
-      <div class="media">
-        ${message.mediaType === 'image' ? `<img src="${message.mediaUrl}" />` : `<div style="padding: 40px; text-align: center;">[VIDEO ASSET: ${message.id}]</div>`}
-      </div>
-    ` : ''}
+  // 1. Raw Data (for machines)
+  messageFolder.file(`RAW_DATA.json`, JSON.stringify(message, null, 2));
 
-    ${message.groundingSources && message.groundingSources.length > 0 ? `
-      <div class="grounding">
-        <div class="grounding-title">Verified Neural Grounding</div>
-        ${message.groundingSources.map(s => `<div style="font-size: 11px; margin-bottom: 4px;">• <a href="${s.uri}" style="color: #38bdf8; text-decoration: none;">${s.title || 'Data Source'}</a></div>`).join('')}
-      </div>
-    ` : ''}
+  // 2. Formatted Dossier (for humans, printable to PDF)
+  const dossierHtml = `
+<!DOCTYPE html><html><head><style>body{font-family: 'Segoe UI', sans-serif; background: #020617; color: #e2e8f0; padding: 40px;}.dossier{border: 1px solid #1e293b; padding: 40px; border-radius: 20px; max-width: 800px; margin: auto; background: #0f172a; box-shadow: 0 20px 50px rgba(0,0,0,0.5);}.header{border-bottom: 2px solid #06b6d4; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-end;}.title{font-size: 24px; font-weight: 900; letter-spacing: -1px; text-transform: uppercase; color: #fff;}.meta{font-family: monospace; font-size: 10px; color: #64748b; text-transform: uppercase;}.content{font-size: 16px; line-height: 1.6; color: #cbd5e1; white-space: pre-wrap; margin-bottom: 40px;}.media{margin-top: 20px; border-radius: 12px; overflow: hidden; border: 1px solid #334155;}.media img, .media video {width: 100%; height: auto;}.grounding{margin-top: 30px; padding: 20px; background: #1e293b; border-radius: 12px;}.grounding-title{font-size: 12px; font-weight: bold; color: #06b6d4; margin-bottom: 10px; text-transform: uppercase;}.footer{margin-top: 50px; text-align: center; border-top: 1px solid #1e293b; padding-top: 20px; font-size: 10px; color: #475569; letter-spacing: 4px;}</style></head><body><div class="dossier"><div class="header"><div><div class="title">Neosphere AI Intelligence Dossier</div><div class="meta">Classification: TOP SECRET // NEURAL OUTPUT</div></div><div class="meta" style="text-align: right;">REF_ID: ${message.id}<br>SYNC_TIME: ${new Date(message.timestamp).toISOString()}</div></div><div class="content">${message.content}</div>${message.mediaUrl ? `<div class="media">${message.mediaType === 'image' ? `<img src="${message.mediaUrl}" />` : `<video controls src="${message.mediaUrl}"></video>`}</div>` : ''}${message.groundingSources && message.groundingSources.length > 0 ? `<div class="grounding"><div class="grounding-title">Verified Neural Grounding</div>${message.groundingSources.map(s => `<div style="font-size: 11px; margin-bottom: 4px;">• <a href="${s.uri}" style="color: #38bdf8; text-decoration: none;">${s.title || 'Data Source'}</a></div>`).join('')}</div>` : ''}<div class="footer">GENERATED BY NEOSPHERE AUTONOMOUS ECOSYSTEM</div></div></body></html>`;
+  messageFolder.file(`DOSSIER.html`, dossierHtml);
+  
+  // 3. Presentation Briefing (for slides)
+  const briefingContent = `NEOSPHERE PRESENTATION MODULE\nREPORT ID: ${message.id}\n----------------------------------------\n\nSLIDE 1: MISSION OVERVIEW\nAgent: ${message.agentId?.toUpperCase() || 'CORE'}\n\nSLIDE 2: SYNAPTIC INSIGHTS\n${message.content}\n\nSLIDE 3: MEDIA & GROUNDING\nAsset Type: ${message.mediaType?.toUpperCase() || 'NONE'}\nSources: ${message.groundingSources?.length || 0}`;
+  messageFolder.file(`BRIEFING.txt`, briefingContent);
 
-    <div class="footer">
-      GENERATED BY NEOSPHERE AUTONOMOUS ECOSYSTEM // END OF REPORT
-    </div>
-  </div>
-</body>
-</html>
-  `;
-  const blob = new Blob([htmlContent], { type: 'text/html' });
-  downloadBlob(blob, `NEOSPHERE_DOSSIER_${message.id}.html`);
+  // 4. Social Media Kit
+  const cleanContent = message.content.replace(/[#*`_]/g, '').replace(/\n\s*\n/g, '\n\n');
+  const summary = cleanContent.substring(0, 250);
+  const hashtags = `#NeosphereAI #AI #Intelligence #GenerativeAI #${message.agentId?.replace(/-/g, '') || 'Core'}`;
+  const socialContent = `NEOSPHERE // SOCIAL MEDIA UPLINK PROTOCOL\nNODE ID: ${message.id}\n-------------------------------------------------\n\n### X (Twitter) Post Suggestion ###\n\nNeosphere Insight // ${summary}...\n\n${hashtags}\n\n### LinkedIn Post Suggestion ###\n\n**Neosphere AI Intelligence Briefing**\n\nJust received a neural uplink from the Neosphere ecosystem with key insights:\n\n"${summary}..."\n\nThis data highlights the power of autonomous AI collaboration for complex problem-solving. What are your thoughts on the future of integrated AI systems?\n\n#AIStrategy #FutureOfWork #TechInnovation ${hashtags}\n\n### Instagram Post Suggestion ###\n\n**Caption:**\nExploring the digital frontier with Neosphere AI. This latest neural transmission reveals fascinating patterns. The future is collaborative, intelligent, and autonomous. ✨\n\n${hashtags}\n\n**Suggested Image Prompt (for Midjourney, DALL-E, etc.):**\n${message.mediaUrl ? `A futuristic, cinematic visualization of the attached media.` : `A stunning abstract visualization of artificial intelligence, neural networks, glowing data streams, futuristic, clean, digital art, high-detail, cinematic lighting, colors of cyan and fuchsia. Prompt: "${cleanContent.substring(0, 150)}..."`}\n\n-------------------------------------------------\nEND OF TRANSMISSION`;
+  messageFolder.file(`SOCIAL_MEDIA_KIT.txt`, socialContent);
+  
+  // 5. Original Media Asset
+  if (message.mediaUrl) {
+    try {
+      const response = await fetch(message.mediaUrl);
+      const blob = await response.blob();
+      let extension = 'bin';
+      if (message.mediaType === 'image') extension = blob.type.split('/')[1] || 'png';
+      else if (message.mediaType === 'video') extension = blob.type.split('/')[1] || 'mp4';
+      else if (message.mediaType === 'audio') extension = blob.type.split('/')[1] || 'wav';
+      messageFolder.file(`MEDIA_ASSET.${extension}`, blob);
+    } catch (e) {
+      console.error("Failed to fetch media for ZIP:", e);
+      messageFolder.file(`MEDIA_FETCH_ERROR.txt`, `Could not retrieve media from: ${message.mediaUrl}`);
+    }
+  }
 };
 
-export const exportToPPT = async (message: Message) => {
-  // Simulated high-fidelity PPT summary
-  const content = `
-NEOSPHERE PRESENTATION MODULE
-REPORT ID: ${message.id}
-----------------------------------------
-SLIDE 1: MISSION OVERVIEW
-Agent Identity: ${message.agentId?.toUpperCase() || 'CORE'}
-System Status: Stable
-
-SLIDE 2: SYNAPTIC INSIGHTS
-Executive Summary:
-${message.content.substring(0, 500)}
-
-SLIDE 3: MEDIA ATTACHMENTS
-Asset Type: ${message.mediaType?.toUpperCase() || 'NONE'}
-${message.mediaUrl ? 'Asset Attached in Package' : 'No Visuals Generated'}
-
-SLIDE 4: SOURCE GROUNDING
-${message.groundingSources?.map(s => `• ${s.title}: ${s.uri}`).join('\n') || 'Internal System Knowledge'}
-
-----------------------------------------
-AUTHENTICATION HASH: ${btoa(message.id)}
-`;
-  const blob = new Blob([content], { type: 'application/vnd.ms-powerpoint' });
-  downloadBlob(blob, `NEOSPHERE_PRESENTATION_${message.id}.ppt`);
+/**
+ * Creates and downloads a comprehensive ZIP archive for a single message.
+ */
+export const exportToUnifiedArchive = async (message: Message) => {
+  const zip = new JSZip();
+  await addMessageToZip(zip, message);
+  const zipBlob = await zip.generateAsync({ type: "blob" });
+  downloadBlob(zipBlob, `NEOSPHERE_PACKAGE_${message.id}.zip`);
 };
 
+/**
+ * Creates and downloads a comprehensive ZIP archive for an album of messages.
+ */
 export const exportAlbumAsZip = async (messages: Message[]) => {
   const zip = new JSZip();
-  const root = zip.folder("NEOSPHERE_NEURAL_ARCHIVE");
-  const media = root?.folder("MEDIA_ASSETS");
-  const data = root?.folder("RAW_DATA");
+  zip.file('ALBUM_MANIFEST.txt', `NEOSPHERE NEURAL ALBUM\nEXPORTED: ${new Date().toISOString()}\nCONTAINS: ${messages.length} NODES`);
 
   for (const msg of messages) {
-    // Add raw text data
-    data?.file(`MANIFEST_${msg.id}.txt`, `NEOSPHERE ARCHIVE BLOCK\nTIMESTAMP: ${new Date(msg.timestamp).toLocaleString()}\n\nCONTENT:\n${msg.content}`);
-
-    // Add media assets (images/videos)
-    if (msg.mediaUrl) {
-      try {
-        // Handle data URLs or standard URIs
-        const response = await fetch(msg.mediaUrl);
-        const blob = await response.blob();
-        
-        let extension = 'bin';
-        if (msg.mediaType === 'image') extension = 'png';
-        else if (msg.mediaType === 'video') extension = 'mp4';
-        else if (msg.mediaType === 'audio') extension = 'wav';
-        
-        media?.file(`ASSET_${msg.id}.${extension}`, blob);
-      } catch (e) {
-        console.error("Neural fetch failed for ZIP inclusion:", e);
-      }
-    }
+    await addMessageToZip(zip, msg);
   }
 
   const zipBlob = await zip.generateAsync({ type: "blob" });
-  downloadBlob(zipBlob, `NEOSPHERE_ARCHIVE_${Date.now()}.zip`);
+  downloadBlob(zipBlob, `NEOSPHERE_ALBUM_${Date.now()}.zip`);
 };
 
-export const shareToSocial = async (message: Message, platform?: 'x' | 'linkedin' | 'instagram') => {
+/**
+ * Shares content directly to social media platforms or the native device share sheet.
+ */
+export const shareToSocial = async (message: Message, platform?: 'x' | 'linkedin') => {
   const cleanContent = message.content.replace(/[#*`]/g, '');
   const text = `Neosphere AI Insight: ${cleanContent.substring(0, 180)}...`;
   const url = window.location.href;
@@ -146,8 +97,30 @@ export const shareToSocial = async (message: Message, platform?: 'x' | 'linkedin
   } else if (navigator.share) {
     try {
       await navigator.share({ title: 'Neosphere Neural Link', text, url });
-    } catch (err) {}
+    } catch (err) {
+      console.error("Native share failed:", err);
+    }
   } else {
     await navigator.clipboard.writeText(`${text}\n\nUplink: ${url}`);
   }
+};
+
+/**
+ * Opens a new tab with a formatted HTML page, suitable for printing or saving as a PDF.
+ */
+export const exportToPdf = (message: Message) => {
+  const dossierHtml = `
+<!DOCTYPE html><html><head><title>Neosphere Dossier ${message.id}</title><style>body{font-family: 'Segoe UI', sans-serif; background: #fff; color: #000; padding: 40px;} @media screen { body { background: #020617; color: #e2e8f0;}} .dossier{border: 1px solid #1e293b; padding: 40px; border-radius: 20px; max-width: 800px; margin: auto; background: #0f172a; box-shadow: 0 20px 50px rgba(0,0,0,0.5);} .header{border-bottom: 2px solid #06b6d4; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-end;} .title{font-size: 24px; font-weight: 900; letter-spacing: -1px; text-transform: uppercase; color: #fff;} .meta{font-family: monospace; font-size: 10px; color: #64748b; text-transform: uppercase;} .content{font-size: 16px; line-height: 1.6; color: #cbd5e1; white-space: pre-wrap; margin-bottom: 40px;} .media{margin-top: 20px; border-radius: 12px; overflow: hidden; border: 1px solid #334155;} .media img, .media video {width: 100%; height: auto;} .grounding{margin-top: 30px; padding: 20px; background: #1e293b; border-radius: 12px;} .grounding-title{font-size: 12px; font-weight: bold; color: #06b6d4; margin-bottom: 10px; text-transform: uppercase;} .footer{margin-top: 50px; text-align: center; border-top: 1px solid #1e293b; padding-top: 20px; font-size: 10px; color: #475569; letter-spacing: 4px;} .print-note{display: block; text-align:center; padding: 15px; background: #1e293b; color: #94a3b8; margin-bottom:20px; border-radius: 12px; border: 1px solid #334155;} @media print{ .print-note{display:none;} body{background: #fff; color: #000;} .dossier{border:none; box-shadow:none; background: #fff; padding: 0; color: #000;} .title, .meta, .content, .grounding-title, .footer { color: #000 !important; } .header{border-color: #ccc;} .grounding{background: #eee;} .footer{border-color:#ccc;} }</style></head><body><div class="print-note">For best results, use your browser's "Print" or "Save as PDF" functionality (Ctrl+P or Cmd+P).</div><div class="dossier"><div class="header"><div><div class="title">Neosphere AI Intelligence Dossier</div><div class="meta">Classification: TOP SECRET // NEURAL OUTPUT</div></div><div class="meta" style="text-align: right;">REF_ID: ${message.id}<br>SYNC_TIME: ${new Date(message.timestamp).toISOString()}</div></div><div class="content">${message.content}</div>${message.mediaUrl ? `<div class="media">${message.mediaType === 'image' ? `<img src="${message.mediaUrl}" />` : `<video controls src="${message.mediaUrl}"></video>`}</div>` : ''}${message.groundingSources && message.groundingSources.length > 0 ? `<div class="grounding"><div class="grounding-title">Verified Neural Grounding</div>${message.groundingSources.map(s => `<div style="font-size: 11px; margin-bottom: 4px;">• <a href="${s.uri}" style="color: #38bdf8; text-decoration: none;">${s.title || 'Data Source'}</a></div>`).join('')}</div>` : ''}<div class="footer">GENERATED BY NEOSPHERE AUTONOMOUS ECOSYSTEM</div></div></body></html>`;
+  const blob = new Blob([dossierHtml], { type: 'text/html' });
+  const url = window.URL.createObjectURL(blob);
+  window.open(url, '_blank');
+};
+
+/**
+ * Downloads a pre-formatted text file suitable for copy-pasting into a presentation.
+ */
+export const exportToPptBriefing = (message: Message) => {
+  const briefingContent = `NEOSPHERE PRESENTATION MODULE\nREPORT ID: ${message.id}\n----------------------------------------\n\nSLIDE 1: MISSION OVERVIEW\nAgent: ${message.agentId?.toUpperCase() || 'CORE'}\n\nSLIDE 2: SYNAPTIC INSIGHTS\n${message.content}\n\nSLIDE 3: MEDIA & GROUNDING\nAsset Type: ${message.mediaType?.toUpperCase() || 'NONE'}\nSources: ${message.groundingSources?.length || 0}`;
+  const blob = new Blob([briefingContent], { type: 'text/plain;charset=utf-8' });
+  downloadBlob(blob, `NEOSPHERE_BRIEFING_${message.id}.txt`);
 };

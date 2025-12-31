@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Send, Loader2, Mic, MicOff, History, X, 
@@ -7,11 +6,11 @@ import {
   Download, Share2, FileText, Presentation, Save,
   Cpu, Twitter, Linkedin, Instagram, Smartphone,
   Volume2, VolumeX, Music as MusicIcon, MapPin, Search, BrainCircuit,
-  Film, Package, FileCode, CheckCircle, AlertCircle
+  Film, Package, FileCode, CheckCircle, AlertCircle, PackagePlus
 } from 'lucide-react';
 import { Agent, Message, ImageSize, AspectRatio, TrainingProtocol } from '../types';
 import { ICON_MAP, AGENTS } from '../constants';
-import { exportToPDF, exportToPPT, exportAlbumAsZip, shareToSocial } from '../services/exportService';
+import { exportToUnifiedArchive, shareToSocial, exportToPdf, exportToPptBriefing } from '../services/exportService';
 import { playRawAudio } from '../services/audioService';
 import { generateSpeech } from '../services/geminiService';
 import ReactMarkdown from 'react-markdown';
@@ -136,32 +135,59 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, messages, onSendMe
     }
   };
 
-  const handleExport = async (type: 'pdf' | 'ppt' | 'zip' | 'x' | 'linkedin') => {
+  const handleSocialShare = async (platform: 'x' | 'linkedin') => {
     const msg = messages.find(m => m.id === showShareModal);
     if (!msg) return;
+    setIsExporting(platform);
+    await shareToSocial(msg, platform);
+    setIsExporting(null);
+  };
 
-    setIsExporting(type);
+  const handleUnifiedExport = async () => {
+    const msg = messages.find(m => m.id === showShareModal);
+    if (!msg) return;
+    setIsExporting('archive');
     setExportSuccess(false);
-    
     try {
-      await new Promise(r => setTimeout(r, 1000));
-      
-      switch (type) {
-        case 'pdf': await exportToPDF(msg); break;
-        case 'ppt': await exportToPPT(msg); break;
-        case 'zip': await exportAlbumAsZip([msg]); break;
-        case 'x': await shareToSocial(msg, 'x'); break;
-        case 'linkedin': await shareToSocial(msg, 'linkedin'); break;
-      }
-      
+      await exportToUnifiedArchive(msg);
+      setExportSuccess(true);
+      setTimeout(() => {
+        setIsExporting(null);
+        setExportSuccess(false);
+        setShowShareModal(null);
+      }, 1500);
+    } catch (err) {
+      console.error("Archive export failure:", err);
+      setIsExporting(null);
+    }
+  };
+  
+  const handlePdfExport = async () => {
+    const msg = messages.find(m => m.id === showShareModal);
+    if (!msg) return;
+    setIsExporting('pdf');
+    try {
+      exportToPdf(msg);
+    } catch (err) {
+      console.error("PDF export failure:", err);
+    }
+    // No success message needed as it opens a new tab
+    setIsExporting(null);
+  };
+
+  const handlePptExport = async () => {
+    const msg = messages.find(m => m.id === showShareModal);
+    if (!msg) return;
+    setIsExporting('ppt');
+    try {
+      exportToPptBriefing(msg);
       setExportSuccess(true);
       setTimeout(() => {
         setExportSuccess(false);
         setIsExporting(null);
-        setShowShareModal(null);
       }, 1500);
     } catch (err) {
-      console.error("Export failure:", err);
+      console.error("PPT export failure:", err);
       setIsExporting(null);
     }
   };
@@ -194,7 +220,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, messages, onSendMe
       {/* Neural Broadcast Modal */}
       {showShareModal && (
         <div className="absolute inset-0 z-[60] bg-slate-950/95 backdrop-blur-2xl flex items-center justify-center p-6 animate-in fade-in zoom-in duration-300">
-           <div className="bg-slate-900 border border-slate-800 p-10 rounded-[4rem] max-w-2xl w-full shadow-[0_0_150px_rgba(0,0,0,0.8)] relative overflow-hidden">
+           <div className="bg-slate-900 border border-slate-800 p-10 rounded-[4rem] max-w-4xl w-full shadow-[0_0_150px_rgba(0,0,0,0.8)] relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyan-500 to-transparent opacity-50" />
               
               <button onClick={() => !isExporting && setShowShareModal(null)} className="absolute top-10 right-10 p-2 text-slate-500 hover:text-white transition-colors">
@@ -206,87 +232,77 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ agent, messages, onSendMe
                     <Share2 className="w-6 h-6 text-cyan-400" />
                     <h3 className="text-4xl font-black text-white uppercase tracking-tighter">Neural Broadcast</h3>
                  </div>
-                 <p className="text-xs text-slate-500 font-mono uppercase tracking-[0.3em]">Protocol: Data Extraction // Node: ${showShareModal.substring(0,8)}</p>
+                 <p className="text-xs text-slate-500 font-mono uppercase tracking-[0.3em]">Protocol: Data Transport // Node: ${showShareModal.substring(0,8)}</p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 {/* Social Uplink Section */}
-                 <div className="space-y-4">
-                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Synaptic Pulse (Social)</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Unified Archive Section */}
+                <div className="space-y-4 flex flex-col">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Complete Neural Package</span>
                     <button 
-                      onClick={() => handleExport('x')}
+                      onClick={handleUnifiedExport}
                       disabled={!!isExporting}
-                      className="w-full flex items-center justify-between p-5 bg-slate-950 border border-slate-800 rounded-3xl hover:border-cyan-500 hover:bg-slate-900 transition-all group disabled:opacity-50"
+                      className="w-full flex-1 flex flex-col items-center justify-center p-5 bg-slate-950 border-2 border-dashed border-slate-800 rounded-3xl hover:border-emerald-500 hover:bg-emerald-950/40 transition-all group disabled:opacity-50"
                     >
-                       <div className="flex items-center space-x-4">
-                          <div className="p-3 bg-white/5 rounded-2xl group-hover:text-cyan-400 transition-colors"><Twitter className="w-6 h-6" /></div>
-                          <span className="font-black uppercase tracking-widest text-[11px]">Sync to X</span>
-                       </div>
-                       {isExporting === 'x' && <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />}
+                      <div className="p-4 bg-emerald-500/10 rounded-2xl group-hover:text-emerald-400 transition-colors mb-4 border border-emerald-500/20"><PackagePlus className="w-10 h-10" /></div>
+                      <span className="font-black uppercase tracking-widest text-sm text-white mb-1">Download Unified Archive</span>
+                      <span className="text-[10px] text-slate-500 font-mono text-center">.zip containing all assets</span>
                     </button>
-                    <button 
-                      onClick={() => handleExport('linkedin')}
-                      disabled={!!isExporting}
-                      className="w-full flex items-center justify-between p-5 bg-slate-950 border border-slate-800 rounded-3xl hover:border-blue-500 hover:bg-slate-900 transition-all group disabled:opacity-50"
-                    >
-                       <div className="flex items-center space-x-4">
-                          <div className="p-3 bg-white/5 rounded-2xl group-hover:text-blue-400 transition-colors"><Linkedin className="w-6 h-6" /></div>
-                          <span className="font-black uppercase tracking-widest text-[11px]">Connect LinkedIn</span>
-                       </div>
-                       {isExporting === 'linkedin' && <Loader2 className="w-4 h-4 animate-spin text-blue-400" />}
-                    </button>
-                 </div>
-
-                 {/* Document Extraction Section */}
-                 <div className="space-y-4">
-                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Physical Extraction (Files)</span>
-                    <button 
-                      onClick={() => handleExport('pdf')}
-                      disabled={!!isExporting}
-                      className="w-full flex items-center justify-between p-5 bg-slate-950 border border-slate-800 rounded-3xl hover:border-rose-500 hover:bg-slate-900 transition-all group disabled:opacity-50"
-                    >
-                       <div className="flex items-center space-x-4">
-                          <div className="p-3 bg-white/5 rounded-2xl group-hover:text-rose-400 transition-colors"><FileText className="w-6 h-6" /></div>
-                          <span className="font-black uppercase tracking-widest text-[11px]">Print Dossier</span>
-                       </div>
-                       {isExporting === 'pdf' && <Loader2 className="w-4 h-4 animate-spin text-rose-400" />}
-                    </button>
-                    <button 
-                      onClick={() => handleExport('ppt')}
-                      disabled={!!isExporting}
-                      className="w-full flex items-center justify-between p-5 bg-slate-950 border border-slate-800 rounded-3xl hover:border-amber-500 hover:bg-slate-900 transition-all group disabled:opacity-50"
-                    >
-                       <div className="flex items-center space-x-4">
-                          <div className="p-3 bg-white/5 rounded-2xl group-hover:text-amber-400 transition-colors"><Presentation className="w-6 h-6" /></div>
-                          <span className="font-black uppercase tracking-widest text-[11px]">Gen Presentation</span>
-                       </div>
-                       {isExporting === 'ppt' && <Loader2 className="w-4 h-4 animate-spin text-amber-400" />}
-                    </button>
-                    <button 
-                      onClick={() => handleExport('zip')}
-                      disabled={!!isExporting}
-                      className="w-full flex items-center justify-between p-5 bg-slate-950 border border-slate-800 rounded-3xl hover:border-emerald-500 hover:bg-slate-900 transition-all group disabled:opacity-50"
-                    >
-                       <div className="flex items-center space-x-4">
-                          <div className="p-3 bg-white/5 rounded-2xl group-hover:text-emerald-400 transition-colors"><Package className="w-6 h-6" /></div>
-                          <span className="font-black uppercase tracking-widest text-[11px]">Package Assets (.zip)</span>
-                       </div>
-                       {isExporting === 'zip' && <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />}
-                    </button>
-                 </div>
+                </div>
+                
+                {/* Individual Exports & Social */}
+                <div className="space-y-6">
+                    <div className="space-y-3">
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Quick Exports</span>
+                       <button 
+                        onClick={handlePdfExport}
+                        disabled={!!isExporting}
+                        className="w-full flex items-center justify-between p-5 bg-slate-950 border border-slate-800 rounded-3xl hover:border-rose-500 hover:bg-slate-900 transition-all group disabled:opacity-50"
+                      >
+                        <div className="flex items-center space-x-4"><div className="p-3 bg-white/5 rounded-2xl group-hover:text-rose-400 transition-colors"><FileText className="w-6 h-6" /></div><span className="font-black uppercase tracking-widest text-[11px]">Export as PDF</span></div>
+                        {isExporting === 'pdf' && <Loader2 className="w-4 h-4 animate-spin text-rose-400" />}
+                      </button>
+                      <button 
+                        onClick={handlePptExport}
+                        disabled={!!isExporting}
+                        className="w-full flex items-center justify-between p-5 bg-slate-950 border border-slate-800 rounded-3xl hover:border-orange-500 hover:bg-slate-900 transition-all group disabled:opacity-50"
+                      >
+                        <div className="flex items-center space-x-4"><div className="p-3 bg-white/5 rounded-2xl group-hover:text-orange-400 transition-colors"><Presentation className="w-6 h-6" /></div><span className="font-black uppercase tracking-widest text-[11px]">Get PPT Briefing</span></div>
+                        {isExporting === 'ppt' && <Loader2 className="w-4 h-4 animate-spin text-orange-400" />}
+                      </button>
+                    </div>
+                     <div className="space-y-3">
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Synaptic Pulse (Social)</span>
+                      <button 
+                        onClick={() => handleSocialShare('x')}
+                        disabled={!!isExporting}
+                        className="w-full flex items-center justify-between p-5 bg-slate-950 border border-slate-800 rounded-3xl hover:border-cyan-500 hover:bg-slate-900 transition-all group disabled:opacity-50"
+                      >
+                         <div className="flex items-center space-x-4"><div className="p-3 bg-white/5 rounded-2xl group-hover:text-cyan-400 transition-colors"><Twitter className="w-6 h-6" /></div><span className="font-black uppercase tracking-widest text-[11px]">Sync to X</span></div>
+                         {isExporting === 'x' && <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />}
+                      </button>
+                      <button 
+                        onClick={() => handleSocialShare('linkedin')}
+                        disabled={!!isExporting}
+                        className="w-full flex items-center justify-between p-5 bg-slate-950 border border-slate-800 rounded-3xl hover:border-blue-500 hover:bg-slate-900 transition-all group disabled:opacity-50"
+                      >
+                         <div className="flex items-center space-x-4"><div className="p-3 bg-white/5 rounded-2xl group-hover:text-blue-400 transition-colors"><Linkedin className="w-6 h-6" /></div><span className="font-black uppercase tracking-widest text-[11px]">Connect LinkedIn</span></div>
+                         {isExporting === 'linkedin' && <Loader2 className="w-4 h-4 animate-spin text-blue-400" />}
+                      </button>
+                    </div>
+                </div>
               </div>
 
               {isExporting && (
                 <div className="mt-12 p-6 bg-slate-950/50 border border-white/5 rounded-3xl flex items-center justify-center space-x-4">
                   {exportSuccess ? (
-                    <div className="flex items-center space-x-2 text-emerald-400 animate-in zoom-in duration-300">
-                      <CheckCircle className="w-6 h-6" />
-                      <span className="font-black uppercase tracking-[0.2em] text-xs">Synthesis Complete // Linked</span>
-                    </div>
+                    <div className="flex items-center space-x-2 text-emerald-400 animate-in zoom-in duration-300"><CheckCircle className="w-6 h-6" /><span className="font-black uppercase tracking-[0.2em] text-xs">Synthesis Complete // Linked</span></div>
                   ) : (
                     <div className="flex items-center space-x-3 text-cyan-400 animate-pulse">
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      <span className="font-black uppercase tracking-[0.2em] text-xs">Calibrating Synaptic Archive...</span>
+                      <span className="font-black uppercase tracking-[0.2em] text-xs">
+                        {isExporting === 'archive' ? 'Calibrating Synaptic Archive...' : 'Processing Export Protocol...'}
+                      </span>
                     </div>
                   )}
                 </div>
